@@ -1,378 +1,277 @@
 import streamlit as st
-import time
-from tqdm.notebook import tqdm
-from tensorflow import keras
-import datetime as dt
-from datetime import date
-import yfinance as yf
 import pandas as pd
-from plotly import graph_objs as go
-import  plotly.express as px
-import math
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-from keras.models import Sequential
-from keras.layers import Dense, LSTM
+import os
 import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder 
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import LabelBinarizer
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, accuracy_score
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.impute import SimpleImputer
+import sys
+from pandas.errors import ParserError
+import time
+import altair as altpi
+import matplotlib.cm as cm
+import graphviz
+import base64
+from bokeh.io import output_file, show
+from bokeh.layouts import column
+from bokeh.layouts import layout
+from bokeh.plotting import figure
+from bokeh.models import Toggle, BoxAnnotation
+from bokeh.models import Panel, Tabs
+from bokeh.palettes import Set3
+
+# Keras specific
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+import time
+
+
+st.title('Machine Learning Predictor')
+
+# Main Predicor class
+class Predictor:
+    # Data preparation part, it will automatically handle with your data
+    def prepare_data(self, split_data, train_test):
+        # Reduce data size
+        data = self.data[self.features]
+        data = data.sample(frac = round(split_data/100,2))
+
+        # Impute nans with mean for numeris and most frequent for categoricals
+        cat_imp = SimpleImputer(strategy="most_frequent")
+        if len(data.loc[:,data.dtypes == 'object'].columns) != 0:
+            data.loc[:,data.dtypes == 'object'] = cat_imp.fit_transform(data.loc[:,data.dtypes == 'object'])
+        imp = SimpleImputer(missing_values = np.nan, strategy="mean")
+        data.loc[:,data.dtypes != 'object'] = imp.fit_transform(data.loc[:,data.dtypes != 'object'])
+
+        # One hot encoding for categorical variables
+        cats = data.dtypes == 'object'
+        le = LabelEncoder() 
+        for x in data.columns[cats]:
+            sum(pd.isna(data[x]))
+            data.loc[:,x] = le.fit_transform(data[x])
+        onehotencoder = OneHotEncoder() 
+        data.loc[:, ~cats].join(pd.DataFrame(data=onehotencoder.fit_transform(data.loc[:,cats]).toarray(), columns= onehotencoder.get_feature_names()))
+
+        # Set target column
+        target_options = data.columns
+        self.chosen_target = st.sidebar.selectbox("Please choose target column", (target_options))
+
+        # Standardize the feature data
+        X = data.loc[:, data.columns != self.chosen_target]
+        scaler = MinMaxScaler(feature_range=(0,1))
+        scaler.fit(X)
+        X = pd.DataFrame(scaler.transform(X))
+        X.columns = data.loc[:, data.columns != self.chosen_target].columns
+        y = data[self.chosen_target]
+
+        # Train test split
+        try:
+            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=(1 - train_test/100), random_state=42)
+        except:
+            st.markdown('<span style="color:red">With this amount of data and split size the train data will have no records, <br /> Please change reduce and split parameter <br /> </span>', unsafe_allow_html=True)  
+
+    # Classifier type and algorithm selection 
+    def set_classifier_properties(self):
+        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression", "Clustering"))
+        if self.type == "Regression":
+            self.chosen_classifier = st.sidebar.selectbox("Please choose a classifier", ('Random Forest', 'Linear Regression', 'Neural Network')) 
+            if self.chosen_classifier == 'Random Forest': 
+                self.n_trees = st.sidebar.slider('number of trees', 1, 1000, 1)
+            elif self.chosen_classifier == 'Neural Network':
+                self.epochs = st.sidebar.slider('number of epochs', 1 ,100 ,10)
+                self.learning_rate = float(st.sidebar.text_input('learning rate:', '0.001'))
+        elif self.type == "Classification":
+            self.chosen_classifier = st.sidebar.selectbox("Please choose a classifier", ('Logistic Regression', 'Naive Bayes', 'Neural Network')) 
+            if self.chosen_classifier == 'Logistic Regression': 
+                self.max_iter = st.sidebar.slider('max iterations', 1, 100, 10)
+            elif self.chosen_classifier == 'Neural Network':
+                self.epochs = st.sidebar.slider('number of epochs', 1 ,100 ,10)
+                self.learning_rate = float(st.sidebar.text_input('learning rate:', '0.001'))
+                self.number_of_classes = int(st.sidebar.text_input('Number of classes', '2'))
+
+        
+        elif self.type == "Clustering":
+            pass
+
+    # Model training and predicitons 
+    def predict(self, predict_btn):    
+
+        if self.type == "Regression":    
+            if self.chosen_classifier == 'Random Forest':
+                self.alg = RandomForestRegressor(max_depth=2, random_state=0, n_estimators=self.n_trees)
+                self.model = self.alg.fit(self.X_train, self.y_train)
+                predictions = self.alg.predict(self.X_test)
+                self.predictions_train = self.alg.predict(self.X_train)
+                self.predictions = predictions
+                
+            
+            elif self.chosen_classifier=='Linear Regression':
+                self.alg = LinearRegression()
+                self.model = self.alg.fit(self.X_train, self.y_train)
+                predictions = self.alg.predict(self.X_test)
+                self.predictions_train = self.alg.predict(self.X_train)
+                self.predictions = predictions
+
+            elif self.chosen_classifier=='Neural Network':
+                model = Sequential()
+                model.add(Dense(500, input_dim = len(self.X_train.columns), activation='relu',))
+                model.add(Dense(50, activation='relu'))
+                model.add(Dense(50, activation='relu'))
+                model.add(Dense(1))
+
+                # optimizer = keras.optimizers.SGD(lr=self.learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+                model.compile(loss= "mean_squared_error" , optimizer='adam', metrics=["mean_squared_error"])
+                self.model = model.fit(self.X_train, self.y_train, epochs=self.epochs, batch_size=40)
+                self.predictions = model.predict(self.X_test)
+                self.predictions_train = model.predict(self.X_train)
+
+        elif self.type == "Classification":
+            if self.chosen_classifier == 'Logistic Regression':
+                self.alg = LogisticRegression()
+                self.model = self.alg.fit(self.X_train, self.y_train)
+                predictions = self.alg.predict(self.X_test)
+                self.predictions_train = self.alg.predict(self.X_train)
+                self.predictions = predictions
+        
+            elif self.chosen_classifier=='Naive Bayes':
+                self.alg = GaussianNB()
+                self.model = self.alg.fit(self.X_train, self.y_train)
+                predictions = self.alg.predict(self.X_test)
+                self.predictions_train = self.alg.predict(self.X_train)
+                self.predictions = predictions
+
+            elif self.chosen_classifier=='Neural Network':
+                model = Sequential()
+                model.add(Dense(500, input_dim = len(self.X_train.columns), activation='relu'))
+                model.add(Dense(50, activation='relu'))
+                model.add(Dense(50, activation='relu'))
+                model.add(Dense(self.number_of_classes, activation='softmax'))
+
+                optimizer = tf.keras.optimizers.SGD(lr=self.learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+                model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+                self.model = model.fit(self.X_train, self.y_train, epochs=self.epochs, batch_size=40)
+
+                self.predictions = model.predict_classes(self.X_test)
+                self.predictions_train = model.predict_classes(self.X_train)
+
+           
+
+        result = pd.DataFrame(columns=['Actual', 'Actual_Train', 'Prediction', 'Prediction_Train'])
+        result_train = pd.DataFrame(columns=['Actual_Train', 'Prediction_Train'])
+        result['Actual'] = self.y_test
+        result_train['Actual_Train'] = self.y_train
+        result['Prediction'] = self.predictions
+        result_train['Prediction_Train'] = self.predictions_train
+        result.sort_index()
+        self.result = result
+        self.result_train = result_train
+
+        return self.predictions, self.predictions_train, self.result, self.result_train
+
+    # Get the result metrics of the model
+    def get_metrics(self):
+        self.error_metrics = {}
+        if self.type == 'Regression':
+            self.error_metrics['MSE_test'] = mean_squared_error(self.y_test, self.predictions)
+            self.error_metrics['MSE_train'] = mean_squared_error(self.y_train, self.predictions_train)
+            return st.markdown('### MSE Train: ' + str(round(self.error_metrics['MSE_train'], 3)) + 
+            ' -- MSE Test: ' + str(round(self.error_metrics['MSE_test'], 3)))
+
+        elif self.type == 'Classification':
+            self.error_metrics['Accuracy_test'] = accuracy_score(self.y_test, self.predictions)
+            self.error_metrics['Accuracy_train'] = accuracy_score(self.y_train, self.predictions_train)
+            return st.markdown('### Accuracy Train: ' + str(round(self.error_metrics['Accuracy_train'], 3)) +
+            ' -- Accuracy Test: ' + str(round(self.error_metrics['Accuracy_test'], 3)))
+
+    # Plot the predicted values and real values
+    def plot_result(self):
+        
+        output_file("slider.html")
+
+        s1 = figure(plot_width=800, plot_height=500, background_fill_color="#fafafa")
+        s1.circle(self.result_train.index, self.result_train.Actual_Train, size=12, color="Black", alpha=1, legend_label = "Actual")
+        s1.triangle(self.result_train.index, self.result_train.Prediction_Train, size=12, color="Red", alpha=1, legend_label = "Prediction")
+        tab1 = Panel(child=s1, title="Train Data")
+
+        if self.result.Actual is not None:
+            s2 = figure(plot_width=800, plot_height=500, background_fill_color="#fafafa")
+            s2.circle(self.result.index, self.result.Actual, size=12, color=Set3[5][3], alpha=1, legend_label = "Actual")
+            s2.triangle(self.result.index, self.result.Prediction, size=12, color=Set3[5][4], alpha=1, legend_label = "Prediction")
+            tab2 = Panel(child=s2, title="Test Data")
+            tabs = Tabs(tabs=[ tab1, tab2 ])
+        else:
+
+            tabs = Tabs(tabs=[ tab1])
+
+        st.bokeh_chart(tabs)
+
+       
+    # File selector module for web app
+    def file_selector(self):
+        file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+        if file is not None:
+            data = pd.read_csv(file)
+            return data
+        else:
+            st.text("Please upload a csv file")
+        
+    
+    def print_table(self):
+        if len(self.result) > 0:
+            result = self.result[['Actual', 'Prediction']]
+            st.dataframe(result.sort_values(by='Actual',ascending=False).style.highlight_max(axis=0))
+    
+    def set_features(self):
+        self.features = st.multiselect('Please choose the features including target variable that go into the model', self.data.columns )
+
+if __name__ == '__main__':
+    controller = Predictor()
+    try:
+        controller.data = controller.file_selector()
+
+        if controller.data is not None:
+            split_data = st.sidebar.slider('Randomly reduce data size %', 1, 100, 10 )
+            train_test = st.sidebar.slider('Train-test split %', 1, 99, 66 )
+        controller.set_features()
+        if len(controller.features) > 1:
+            controller.prepare_data(split_data, train_test)
+            controller.set_classifier_properties()
+            predict_btn = st.sidebar.button('Predict')  
+    except (AttributeError, ParserError, KeyError) as e:
+        st.markdown('<span style="color:blue">WRONG FILE TYPE</span>', unsafe_allow_html=True)  
+
+
+    if controller.data is not None and len(controller.features) > 1:
+        if predict_btn:
+            st.sidebar.text("Progress:")
+            my_bar = st.sidebar.progress(0)
+            predictions, predictions_train, result, result_train = controller.predict(predict_btn)
+            for percent_complete in range(100):
+                my_bar.progress(percent_complete + 1)
+            
+            controller.get_metrics()        
+            controller.plot_result()
+            controller.print_table()
+
+            data = controller.result.to_csv(index=False)
+            b64 = base64.b64encode(data.encode()).decode()  # some strings <-> bytes conversions necessary here
+            href = f'<a href="data:file/csv;base64,{b64}">Download Results</a> (right-click and save as &lt;some_name&gt;.csv)'
+            st.sidebar.markdown(href, unsafe_allow_html=True)
+
+
+    
+    if controller.data is not None:
+        if st.sidebar.checkbox('Show raw data'):
+            st.subheader('Raw data')
+            st.write(controller.data)
+    
 
-
-START = "2014-01-01"
-TODAY = dt.datetime.now().strftime("%Y-%m-%d")
-
-st.title("Stock Prediction App")
-
-stocks = ["Select the Stock", "AAPL", "GOOG", "MSFT", "AMZN", "TSLA", "GME", "NVDA", "AMD"]
-
-
-# Loading Data ---------------------
-
-#@st.cache(suppress_st_warning=True)
-def load_data(ticker):
-    data = yf.download(ticker, START,  TODAY)
-    data.reset_index(inplace=True)
-    return data
-
-
-#For Stock Financials ----------------------
-
-def stock_financials(stock):
-    df_ticker = yf.Ticker(stock)
-    sector = df_ticker.info['sector']
-    prevClose = df_ticker.info['previousClose']
-    marketCap = df_ticker.info['marketCap']
-    twoHunDayAvg = df_ticker.info['twoHundredDayAverage']
-    fiftyTwoWeekHigh = df_ticker.info['fiftyTwoWeekHigh']
-    fiftyTwoWeekLow = df_ticker.info['fiftyTwoWeekLow']
-    Name = df_ticker.info['longName']
-    averageVolume = df_ticker.info['averageVolume']
-    ftWeekChange = df_ticker.info['52WeekChange']
-    website = df_ticker.info['website']
-
-    st.write('Company Name -', Name)
-    st.write('Sector -', sector)
-    st.write('Company Website -', website)
-    st.write('Average Volume -', averageVolume)
-    st.write('Market Cap -', marketCap)
-    st.write('Previous Close -', prevClose)
-    st.write('52 Week Change -', ftWeekChange)
-    st.write('52 Week High -', fiftyTwoWeekHigh)
-    st.write('52 Week Low -', fiftyTwoWeekLow)
-    st.write('200 Day Average -', twoHunDayAvg)
-
-
-#Plotting Raw Data ---------------------------------------
-
-def plot_raw_data(stock, data_1):
-    df_ticker = yf.Ticker(stock)
-    Name = df_ticker.info['longName']
-    #data1 = df_ticker.history()
-    data_1.reset_index()
-    #st.write(data_1)
-    numeric_df = data_1.select_dtypes(['float', 'int'])
-    numeric_cols = numeric_df.columns.tolist()
-    st.markdown('')
-    st.markdown('**_Features_** you want to **_Plot_**')
-    features_selected = st.multiselect("", numeric_cols)
-    if st.button("Generate Plot"):
-        cust_data = data_1[features_selected]
-        plotly_figure = px.line(data_frame=cust_data, x=data_1['Date'], y=features_selected,
-                                title= Name + ' ' + '<i>timeline</i>')
-        plotly_figure.update_layout(title = {'y':0.9,'x':0.5, 'xanchor': 'center', 'yanchor': 'top'})
-        plotly_figure.update_xaxes(title_text='Date')
-        plotly_figure.update_layout(legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, title="Price"), width=800, height=550)
-        st.plotly_chart(plotly_figure)
-
-
-#For LSTM MOdel ------------------------------
-
-def create_train_test_LSTM(df, epoch, b_s, ticker_name):
-
-    df_filtered = df.filter(['Close'])
-    dataset = df_filtered.values
-
-    #Training Data
-    training_data_len = math.ceil(len(dataset) * .7)
-
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled_data = scaler.fit_transform(dataset)
-
-    train_data = scaled_data[0: training_data_len, :]
-
-    x_train_data, y_train_data = [], []
-
-    for i in range(60, len(train_data)):
-        x_train_data.append(train_data[i-60:i, 0])
-        y_train_data.append(train_data[i, 0])
-
-    x_train_data, y_train_data = np.array(x_train_data), np.array(y_train_data)
-
-    x_train_data = np.reshape(x_train_data, (x_train_data.shape[0], x_train_data.shape[1], 1))
-
-    #Testing Data
-    test_data = scaled_data[training_data_len - 60:, :]
-
-    x_test_data = []
-    y_test_data = dataset[training_data_len:, :]
-
-    for j in range(60, len(test_data)):
-        x_test_data.append(test_data[j - 60:j, 0])
-
-    x_test_data = np.array(x_test_data)
-
-    x_test_data = np.reshape(x_test_data, (x_test_data.shape[0], x_test_data.shape[1], 1))
-
-
-    model = Sequential()
-    model.add(LSTM(units=50, return_sequences=True, input_shape=(x_train_data.shape[1], 1)))
-    model.add(LSTM(units=50, return_sequences=False))
-
-    model.add(Dense(25))
-    model.add(Dense(1))
-
-    model.compile(optimizer='adam', loss='mean_squared_error')
-
-    model.fit(x_train_data, y_train_data, batch_size=int(b_s), epochs=int(epoch))
-    st.success("Your Model is Trained Succesfully!")
-    st.markdown('')
-    st.write("Predicted vs Actual Results for LSTM")
-    st.write("Stock Prediction on Test Data for - ",ticker_name)
-
-    predictions = model.predict(x_test_data)
-    predictions = scaler.inverse_transform(predictions)
-
-    train = df_filtered[:training_data_len]
-    valid = df_filtered[training_data_len:]
-    valid['Predictions'] = predictions
-
-    new_valid = valid.reset_index()
-    new_valid.drop('index', inplace=True, axis=1)
-    st.dataframe(new_valid)
-    st.markdown('')
-    st.write("Plotting Actual vs Predicted ")
-
-    st.set_option('deprecation.showPyplotGlobalUse', False)
-    plt.figure(figsize=(14, 8))
-    plt.title('Actual Close prices vs Predicted Using LSTM Model', fontsize=20)
-    plt.plot(valid[['Close', 'Predictions']])
-    plt.legend(['Actual', 'Predictions'], loc='upper left', prop={"size":20})
-    st.pyplot()
-
-
-
-#Creating Training and Testing Data for other Models ----------------------
-
-def create_train_test_data(df1):
-
-    data = df1.sort_index(ascending=True, axis=0)
-    new_data = pd.DataFrame(index=range(0, len(df1)), columns=['Date', 'High', 'Low', 'Open', 'Volume', 'Close'])
-
-    for i in range(0, len(data)):
-        new_data['Date'][i] = data['Date'][i]
-        new_data['High'][i] = data['High'][i]
-        new_data['Low'][i] = data['Low'][i]
-        new_data['Open'][i] = data['Open'][i]
-        new_data['Volume'][i] = data['Volume'][i]
-        new_data['Close'][i] = data['Close'][i]
-
-    #Removing the hour, minute and second
-    new_data['Date'] = pd.to_datetime(new_data['Date']).dt.date
-
-    train_data_len = math.ceil(len(new_data) * .8)
-
-    train_data = new_data[:train_data_len]
-    test_data = new_data[train_data_len:]
-
-    return train_data, test_data
-
-
-#Finding Movinf Average ---------------------------------------
-
-def find_moving_avg(ma_button, df):
-    days = ma_button
-
-    data1 = df.sort_index(ascending=True, axis=0)
-    new_data = pd.DataFrame(index=range(0, len(df)), columns=['Date', 'Close'])
-
-    for i in range(0, len(data1)):
-        new_data['Date'][i] = data1['Date'][i]
-        new_data['Close'][i] = data1['Close'][i]
-
-    new_data['SMA_'+str(days)] = new_data['Close'].rolling(min_periods=1, window=days).mean()
-
-    #new_data.dropna(inplace=True)
-    new_data.isna().sum()
-
-    #st.write(new_data)
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=new_data['Date'], y=new_data['Close'], mode='lines', name='Close'))
-    fig.add_trace(go.Scatter(x=new_data['Date'], y=new_data['SMA_'+str(days)], mode='lines', name='SMA_'+str(days)))
-    fig.update_layout(legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01), height=550, width=800,
-                      autosize=False, margin=dict(l=25, r=75, b=100, t=0))
-
-    st.plotly_chart(fig)
-
-
-#Finding Linear Regression ----------------------------
-
-def Linear_Regression_model(train_data, test_data):
-
-    x_train = train_data.drop(columns=['Date', 'Close'], axis=1)
-    x_test = test_data.drop(columns=['Date', 'Close'], axis=1)
-    y_train = train_data['Close']
-    y_test = test_data['Close']
-
-    #First Create the LinearRegression object and then fit it into the model
-    from sklearn.linear_model import LinearRegression
-
-    model = LinearRegression()
-    model.fit(x_train, y_train)
-
-    #Making the Predictions
-    prediction = model.predict(x_test)
-
-    return prediction
-
-
-#Plotting the Predictions -------------------------
-
-
-def prediction_plot(pred_data, test_data, models, ticker_name):
-
-    test_data['Predicted'] = 0
-    test_data['Predicted'] = pred_data
-
-    #Resetting the index
-    test_data.reset_index(inplace=True, drop=True)
-    st.success("Your Model is Trained Succesfully!")
-    st.markdown('')
-    st.write("Predicted Price vs Actual Close Price Results for - " ,models)
-    st.write("Stock Prediction on Test Data for - ", ticker_name)
-    st.write(test_data[['Date', 'Close', 'Predicted']])
-    st.write("Plotting Close Price vs Predicted Price for - ", models)
-
-    #Plotting the Graph
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=test_data['Date'], y=test_data['Close'], mode='lines', name='Close'))
-    fig.add_trace(go.Scatter(x=test_data['Date'], y=test_data['Predicted'], mode='lines', name='Predicted'))
-    fig.update_layout(legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01), height=550, width=800,
-                      autosize=False, margin=dict(l=25, r=75, b=100, t=0))
-
-    st.plotly_chart(fig)
-
-
-
-# Sidebar Menu -----------------------
-
-menu=["Stock Exploration and Feature Extraction", "Train Model"]
-st.sidebar.title("Settings")
-st.sidebar.subheader("Timeseries Settings")
-choices = st.sidebar.selectbox("Select the Activity", menu,index=0)
-
-
-
-if choices == 'Stock Exploration and Feature Extraction':
-    st.subheader("Extract Data")
-    #user_input = ''
-    st.markdown('Enter **_Ticker_ Symbol** for the **Stock**')
-    #user_input=st.selectbox("", stocks)
-    user_input = st.text_input("", '')
-
-    if not user_input:
-        pass
-    else:
-        data = load_data(user_input)
-        st.markdown('Select from the options below to Explore Stocks')
-
-        selected_explore = st.selectbox("", options=['Select your Option', 'Stock Financials Exploration',
-                                                     'Extract Features for Stock Price Forecasting'], index=0)
-        if selected_explore == 'Stock Financials Exploration':
-            st.markdown('')
-            st.markdown('**_Stock_ _Financial_** Information ------')
-            st.markdown('')
-            st.markdown('')
-            stock_financials(user_input)
-            plot_raw_data(user_input, data)
-            st.markdown('')
-            shw_SMA = st.checkbox('Show Moving Average')
-
-            if shw_SMA:
-                st.write('Stock Data based on Moving Average')
-                st.write('A Moving Average(MA) is a stock indicator that is commonly used in technical analysis')
-                st.write(
-                    'The reason for calculating moving average of a stock is to help smooth out the price of data over '
-                    'a specified period of time by creating a constanly updated average price')
-                st.write(
-                    'A Simple Moving Average (SMA) is a calculation that takes the arithmatic mean of a given set of '
-                    'prices over the specified number of days in the past, for example: over the previous 15, 30, 50, '
-                    '100, or 200 days.')
-
-                ma_button = st.number_input("Select Number of Days Moving Average", 5, 200)
-
-                if ma_button:
-                    st.write('You entered the Moving Average for ', ma_button, 'days')
-                    find_moving_avg(ma_button, data)
-
-        elif selected_explore == 'Extract Features for Stock Price Forecasting':
-            st.markdown('Select **_Start_ _Date_ _for_ _Historical_ Stock** Data & features')
-            start_date = st.date_input("", date(2014, 1, 1))
-            st.write('You Selected Data From - ', start_date)
-            submit_button = st.button("Extract Features")
-
-            start_row = 0
-            if submit_button:
-                st.write('Extracted Features Dataframe for ', user_input)
-                for i in range(0, len(data)):
-                    if start_date <= pd.to_datetime(data['Date'][i]):
-                        start_row = i
-                        break
-                # data = data.set_index(pd.DatetimeIndex(data['Date'].values))
-                st.write(data.iloc[start_row:, :])
-
-elif choices == 'Train Model':
-    st.subheader("Train Machine Learning Models for Stock Prediction")
-    st.markdown('')
-    st.markdown('**_Select_ _Stocks_ _to_ Train**')
-    stock_select = st.selectbox("", stocks, index=0)
-    df1 = load_data(stock_select)
-    df1 = df1.reset_index()
-    df1['Date'] = pd.to_datetime(df1['Date']).dt.date
-    options = ['Select your option', 'Moving Average', 'Linear Regression', 'Random Forest', 'XGBoost', 'LSTM']
-    st.markdown('')
-    st.markdown('**_Select_ _Machine_ _Learning_ _Algorithms_ to Train**')
-    models = st.selectbox("", options)
-    submit = st.button('Train Model')
-
-    if models == 'LSTM':
-        st.markdown('')
-        st.markdown('')
-        st.markdown("**Select the _Number_ _of_ _epochs_ and _batch_ _size_ for _training_ form the following**")
-        st.markdown('')
-        epoch = st.slider("Epochs", 0, 300, step=1)
-        b_s = st.slider("Batch Size", 32, 1024, step=1)
-        if submit:
-            st.write('**Your _final_ _dataframe_ _for_ Training**')
-            st.write(df1[['Date','Close']])
-            create_train_test_LSTM(df1, epoch, b_s, stock_select)
-
-
-    elif models == 'Linear Regression':
-        if submit:
-            st.write('**Your _final_ _dataframe_ _for_ Training**')
-            st.write(df1[['Date','Close']])
-            train_data, test_data = create_train_test_data(df1)
-            pred_data = Linear_Regression_model(train_data, test_data)
-            prediction_plot(pred_data, test_data, models, stock_select)
-
-
-    elif models == 'Moving Average':
-        ma_button = st.slider('Select Number of Days Moving Average', 0, 200, step=1)
-        submit_1 = st.button('Generate')
-        if submit_1:
-            st.write('Stock Data based on Moving Average')
-            st.write('A Moving Average(MA) is a stock indicator that is commonly used in technical analysis')
-            st.write('The reason for calculating moving average of a stock is to help smooth out the price of data over '
-                  'a specified period of time by creating a constanly updated average price')
-            st.write('A Simple Moving Average (SMA) is a calculation that takes the arithmatic mean of a given set of '
-                 'prices over the specified number of days in the past, for example: over the previous 15, 30, 50, '
-                 '100, or 200 days.')
