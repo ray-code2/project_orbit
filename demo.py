@@ -18,7 +18,6 @@ from pandas.errors import ParserError
 import time
 import altair as altpi
 import matplotlib.cm as cm
-import graphviz
 import base64
 from bokeh.io import output_file, show
 from bokeh.layouts import column
@@ -33,9 +32,6 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 import time
-
-
-st.title('Machine Learning Predictor')
 
 # Main Predicor class
 class Predictor:
@@ -99,8 +95,6 @@ class Predictor:
                 self.number_of_classes = int(st.sidebar.text_input('Number of classes', '2'))
 
         
-        elif self.type == "Clustering":
-            pass
 
     # Model training and predicitons 
     def predict(self, predict_btn):    
@@ -156,8 +150,8 @@ class Predictor:
                 model.add(Dense(50, activation='relu'))
                 model.add(Dense(self.number_of_classes, activation='softmax'))
 
-                optimizer = tf.keras.optimizers.SGD(lr=self.learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
-                model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+                #optimizer = tf.keras.optimizers.SGD(lr=self.learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+                model.compile(optimizer= 'adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
                 self.model = model.fit(self.X_train, self.y_train, epochs=self.epochs, batch_size=40)
 
                 self.predictions = model.predict_classes(self.X_test)
@@ -222,13 +216,29 @@ class Predictor:
             data = pd.read_csv(file)
             return data
         else:
-            st.text("Please upload a csv file")
+            # Buku panduan
+            st.header('Step By Step On How to Use The Application : ')
+            st.subheader('Step 1 : ')
+            st.markdown('Download The dataset from the link below!')
+            link = 'https://www.kaggle.com/datasets/kamilpytlak/personal-key-indicators-of-heart-disease?select=heart_2020_cleaned.csv'
+            st.markdown(link, unsafe_allow_html=True)
+            st.subheader('Step 2 : ')
+            st.markdown('Upload The Dataset make sure file type is CSV!')
+            st.subheader('Step 3 : ')
+            st.markdown('Choose the features including target variable that go into the model!')
+            st.subheader('Step 4 : ')
+            st.markdown('Choose Machine Learning Algorithm you want to visualize!')
+            st.subheader('Step 5 : ')
+            st.markdown('Click the Predict Button!')
+            st.subheader('Congratulation! The Visualization appears on the screen! 👍')
+
+
         
-    
+    # Print Dataframe prediction on web
     def print_table(self):
         if len(self.result) > 0:
             result = self.result[['Actual', 'Prediction']]
-            st.dataframe(result.sort_values(by='Actual',ascending=False).style.highlight_max(axis=0))
+            st.dataframe(result.sort_values(by='Actual',ascending=False))
     
     def set_features(self):
         self.features = st.multiselect('Please choose the features including target variable that go into the model', self.data.columns )
@@ -240,20 +250,26 @@ if __name__ == '__main__':
 
         if controller.data is not None:
             split_data = st.sidebar.slider('Randomly reduce data size %', 1, 100, 10 )
-            train_test = st.sidebar.slider('Train-test split %', 1, 99, 66 )
+            train_test = st.sidebar.slider('Train-test split %', 1, 99, 70 )
         controller.set_features()
         if len(controller.features) > 1:
             controller.prepare_data(split_data, train_test)
             controller.set_classifier_properties()
             predict_btn = st.sidebar.button('Predict')  
+            
     except (AttributeError, ParserError, KeyError) as e:
-        st.markdown('<span style="color:blue">WRONG FILE TYPE</span>', unsafe_allow_html=True)  
+        st.markdown('', unsafe_allow_html=True) 
+
+
+
 
 
     if controller.data is not None and len(controller.features) > 1:
+        # if predict button di click
         if predict_btn:
             st.sidebar.text("Progress:")
             my_bar = st.sidebar.progress(0)
+
             predictions, predictions_train, result, result_train = controller.predict(predict_btn)
             for percent_complete in range(100):
                 my_bar.progress(percent_complete + 1)
