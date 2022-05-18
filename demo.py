@@ -19,6 +19,7 @@ import time
 import altair as altpi
 import matplotlib.cm as cm
 import base64
+from PIL import Image
 from bokeh.io import output_file, show
 from bokeh.layouts import column
 from bokeh.layouts import layout
@@ -32,8 +33,6 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 import time
-
-
 
 # Main Predicor class
 class Predictor:
@@ -79,7 +78,7 @@ class Predictor:
 
     # Classifier type and algorithm selection 
     def set_classifier_properties(self):
-        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression"))
+        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression", "Clustering"))
         if self.type == "Regression":
             self.chosen_classifier = st.sidebar.selectbox("Please choose a classifier", ('Random Forest', 'Linear Regression', 'Neural Network')) 
             if self.chosen_classifier == 'Random Forest': 
@@ -210,7 +209,7 @@ class Predictor:
 
         st.bokeh_chart(tabs)
 
-       
+
     # File selector module for web app
     def file_selector(self):
         file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
@@ -222,21 +221,35 @@ class Predictor:
             image = Image.open('dataset-cover.jpg')
             st.image(image)
             # Buku panduan
-            st.header('Step By Step On How to Use The Application : ')
-            st.subheader('Step 1 : ')
-            st.markdown('Download The dataset from the link below!')
+            st.subheader('About our dataset : ')
+            st.markdown(
+                '''
+                According to the CDC, heart disease is one of the leading causes of death for people of most races in the US (African Americans, American Indians and Alaska Natives, and white people). 
+                About half of all Americans (47%) have at least 1 of 3 key risk factors for heart disease: high blood pressure, high cholesterol, and smoking. 
+                Other key indicator include diabetic status, obesity (high BMI), not getting enough physical activity or drinking too much alcohol. 
+                Detecting and preventing the factors that have the greatest impact on heart disease is very important in healthcare. 
+                Computational developments, in turn, allow the application of machine learning methods to detect 'patterns' from the data that can predict a patient's condition.
+                '''
+            )
+            st.subheader("What can you do with this dataset?")
+            st.markdown(
+                '''
+                As described above, the original dataset of nearly 300 variables was reduced to just about 20 variables. 
+                In addition to classical EDA, this dataset can be used to apply a range of machine learning methods, most notably classifier models (logistic regression, SVM, random forest, etc.). 
+                You should treat the variable "HeartDisease" as a binary ("Yes" - respondent had heart disease; "No" - respondent had no heart disease). 
+                But note that classes are not balanced, so the classic model application approach is not advisable. 
+                Fixing the weights/undersampling should yield significantly betters results.
+                '''
+            )
+            st.subheader('How to use The application : ')
+            st.markdown('- Download The dataset from the link below')
             link = 'https://www.kaggle.com/datasets/kamilpytlak/personal-key-indicators-of-heart-disease?select=heart_2020_cleaned.csv'
             st.markdown(link, unsafe_allow_html=True)
-            st.subheader('Step 2 : ')
-            st.markdown('Upload The Dataset make sure file type is CSV!')
-            st.subheader('Step 3 : ')
-            st.markdown('Choose the features including target variable that go into the model!')
-            st.subheader('Step 4 : ')
-            st.markdown('Choose Machine Learning Algorithm you want to visualize!')
-            st.subheader('Step 5 : ')
-            st.markdown('Click the Predict Button!')
-            st.subheader('Congratulation! The Visualization appears on the screen! 👍')
-
+            st.markdown('- Upload The Dataset make sure file type is CSV')
+            st.markdown('- Choose the features including target variable that go into the model')
+            st.markdown('- Choose Machine Learning Algorithm you want to visualize')
+            st.markdown('- Click the Predict Button')
+            st.markdown("- and you're done! 👍")
 
         
     # Print Dataframe prediction on web
@@ -295,4 +308,3 @@ if __name__ == '__main__':
             st.subheader('Raw data')
             st.write(controller.data)
     
-
