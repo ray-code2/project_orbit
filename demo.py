@@ -217,7 +217,7 @@ class Predictor:
             data = pd.read_csv(file)
             return data
         else:
-            st.title('Heart Disease Predictor')
+            st.title('Predly')
             image = Image.open('dataset-cover.jpg')
             st.image(image)
             # Buku panduan
