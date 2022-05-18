@@ -33,6 +33,12 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 import time
 
+#tentang Presentasi
+# 1. Jelaskan secara singkat konsep dari Aplikasi (Ai apa yang digunakan)
+# 2. Target dari aplikasi Mahasiswa 
+# 3. 
+
+
 # Main Predicor class
 class Predictor:
     # Data preparation part, it will automatically handle with your data
@@ -77,7 +83,7 @@ class Predictor:
 
     # Classifier type and algorithm selection 
     def set_classifier_properties(self):
-        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression", "Clustering"))
+        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression"))
         if self.type == "Regression":
             self.chosen_classifier = st.sidebar.selectbox("Please choose a classifier", ('Random Forest', 'Linear Regression', 'Neural Network')) 
             if self.chosen_classifier == 'Random Forest': 
