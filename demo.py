@@ -218,6 +218,9 @@ class Predictor:
             data = pd.read_csv(file)
             return data
         else:
+            st.title('Predly')
+            image = Image.open('dataset-cover.jpg')
+            st.image(image)
             # Buku panduan
             st.header('Step By Step On How to Use The Application : ')
             st.subheader('Step 1 : ')
