@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
-import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
@@ -16,8 +14,6 @@ from sklearn.impute import SimpleImputer
 import sys
 from pandas.errors import ParserError
 import time
-import altair as altpi
-import matplotlib.cm as cm
 import base64
 from PIL import Image
 from bokeh.io import output_file, show
