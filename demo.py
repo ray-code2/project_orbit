@@ -151,8 +151,8 @@ class Predictor:
                 model.compile(optimizer= 'adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
                 self.model = model.fit(self.X_train, self.y_train, epochs=self.epochs, batch_size=40)
 
-                self.predictions = model.predict_classes(self.X_test)
-                self.predictions_train = model.predict_classes(self.X_train)
+                self.predictions = model.predict(self.X_test)
+                self.predictions_train = model.predict(self.X_train)
 
            
 
