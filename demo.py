@@ -74,7 +74,7 @@ class Predictor:
 
     # Classifier type and algorithm selection 
     def set_classifier_properties(self):
-        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression", "Clustering"))
+        self.type = st.sidebar.selectbox("Algorithm type", ("Classification", "Regression"))
         if self.type == "Regression":
             self.chosen_classifier = st.sidebar.selectbox("Please choose a classifier", ('Random Forest', 'Linear Regression', 'Neural Network')) 
             if self.chosen_classifier == 'Random Forest': 
